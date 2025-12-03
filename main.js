@@ -5,10 +5,14 @@ const objects = [];
 const ctx=canvas.getContext("2d");
 let playerShip;
 
+let enemies = [];
+
+let focusedShip ;
+
 
 
 class EnemyShip {
-    constructor(x, y, width, height ,spriteSheet ,word,speed=30) {
+    constructor(x, y, width, height ,spriteSheet ,word="aliefffffffffffffn",speed=30 ) {
         this.x = x;
         this.y = y;
         this.width = width;
@@ -16,8 +20,10 @@ class EnemyShip {
         this.spriteSheet=spriteSheet;
         this.frameWidth = 43;
         this.frameHeight = 58;
-        this.word=word;
         this.speed=speed;
+        this.isFocused=false;
+        this.letters=word.split('');
+        this.word=word;
         
         const enemyCx = this.x + this.width / 2;
         const enemyCy = this.y + this.height / 2;
@@ -57,12 +63,12 @@ class EnemyShip {
     const circle1 = {
         x: this.x + this.width / 2,
         y: this.y + this.height / 2,
-        radius: Math.max(this.width, this.height) / 2 - 3
+        radius: Math.max(this.width, this.height) / 2 - 4
     };
     const circle2 = {
         x: playerShip.x + playerShip.frameWidth / 2,
         y: playerShip.y + playerShip.frameHeight / 2,
-        radius: Math.max(playerShip.frameWidth, playerShip.frameHeight) / 2  + 2 
+        radius: Math.max(playerShip.frameWidth, playerShip.frameHeight) / 2  - 2 
     };
     
     const dx = circle1.x - circle2.x;
@@ -100,7 +106,7 @@ class EnemyShip {
     -this.width / 2, -this.height / 2,
     this.width, this.height
   );
-
+  ctx.rotate(-(this.angle - Math.PI / 2));
   // Draw a circle instead of a rectangle
   ctx.beginPath();
   const radius = Math.max(this.width, this.height) / 2 - 2; // circle radius
@@ -108,8 +114,62 @@ class EnemyShip {
   ctx.strokeStyle = "red";
   ctx.lineWidth = 1;
   ctx.stroke();
-
   ctx.restore();
+  this.drawTextWithBackground(ctx, this.word, this.x + this.width / 2, this.y - 5, "white", "black", 4);
+
+}
+ drawTextWithBackground(ctx, text, x, y, textColor, bgColor, padding = 4) {
+    // 1. Get Text Metrics
+    // IMPORTANT: The font and text properties (like ctx.font, ctx.textAlign) 
+    // must be set on the context before this function is called.
+    const metrics = ctx.measureText(text);
+    
+    // Calculate dimensions based on metrics
+    const textWidth = metrics.width;
+    
+    // Calculate the precise height of the bounding box
+    const textHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+    
+    // 2. Calculate Background Box Position and Size
+    
+    // Total width including padding
+    const bgWidth = textWidth + padding * 2; 
+    
+    // Total height including padding
+    const bgHeight = textHeight + padding * 2; 
+
+    // Adjust the starting X and Y position for the rectangle
+    // The canvas origin (x, y) usually refers to the text baseline.
+    
+    let bgX = x;
+    let bgY = y;
+
+    // Adjust X based on horizontal alignment (default is 'left')
+    // If ctx.textAlign is 'center', the metrics.width is centered around x.
+    if (ctx.textAlign === 'center') {
+        bgX = x - bgWidth / 2;
+    } else if (ctx.textAlign === 'right' || ctx.textAlign === 'end') {
+        bgX = x - bgWidth;
+    } else { // 'left' or 'start'
+        // If left-aligned, the text starts at x, so the box starts at x.
+        bgX = x - padding;
+    }
+
+    // Adjust Y based on vertical baseline (default is 'alphabetic')
+    // The rectangle needs to start at the top edge of the text + padding.
+    bgY = y - metrics.actualBoundingBoxAscent - padding;
+
+
+    // 3. Draw the Background Rectangle
+    ctx.save();
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
+
+    // 4. Draw the Text
+    ctx.fillStyle = textColor;
+    ctx.fillText(text, x, y);
+    
+    ctx.restore();
 }
 
 } 
@@ -201,7 +261,7 @@ class PlayerShip {
 
   // Draw circle hitbox centered at origin
   ctx.beginPath();
-  const radius = Math.max(this.frameWidth, this.frameHeight) / 2 +2;
+  const radius = Math.max(this.frameWidth, this.frameHeight) / 2 - 1;
   ctx.arc(0, 0, radius, 0, Math.PI * 2);
   ctx.strokeStyle = "red";
   ctx.lineWidth = 1;
@@ -232,13 +292,13 @@ enemyImage.src = "destroyer.png";
 enemyImage.onload = () => {
     console.log("Enemy Image loaded");
 
-    const enemyCount = 5;           // number of enemies
+    const enemyCount = 1;           // number of enemies
     const enemyWidth = 43;
     const enemyHeight = 58;
 
     for (let i = 0; i < enemyCount; i++) {
         // Random Y between -15 and -5
-        const randomY = Math.random() * ( -10 - (-15) ) + (-15); // = [-15, -10]
+        const randomY = -70 // = [-15, -10]
 
         // Get the cone range from playerShip for this Y
         const range = playerShip.getConeXRange(randomY);
@@ -253,10 +313,18 @@ enemyImage.onload = () => {
             enemyImage,
             "alien"
         );
+        enemies.push(enemy);
 
         objects.push(enemy);
     }
 };
+
+const bg = new Image();
+
+// IMPORTANT: Use a tileable image!
+bg.src = 'background.jpg';
+let scrollSpeed = 0.1; // How many pixels to move per frame
+let backgroundY = 0;
 
 
 function gameLoop(timestamp) {
@@ -266,6 +334,13 @@ function gameLoop(timestamp) {
   for (const obj of objects) obj.update(dt);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  backgroundY -= scrollSpeed;
+    if (backgroundY <= -bg.height) {
+        backgroundY = 0;
+    }
+
+    ctx.drawImage(bg, 0, backgroundY, canvas.width, bg.height);
+    ctx.drawImage(bg, 0 , backgroundY+bg.height -1, canvas.width,bg.height);
   for (const obj of objects) obj.draw(ctx);
 
   requestAnimationFrame(gameLoop);
