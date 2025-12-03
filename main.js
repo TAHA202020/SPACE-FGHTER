@@ -7,8 +7,33 @@ const objects = [];
 const ctx=canvas.getContext("2d");
 let playerShip;
 
+const backgroundMusic = new Audio('soundtrack.mp3');
+backgroundMusic.loop = true;
+backgroundMusic.volume = 0.5; // Set volume (0.0 to 1.0)
 
 
+class AudioManager{
+    constructor() {
+      
+    }
+ 
+    static playBackgroundMusic() {
+        backgroundMusic.play();
+    }
+}
+const soundBtn =document.getElementById('sound-btn');
+
+soundBtn.addEventListener('click', () => {
+    if (backgroundMusic.paused) {
+        backgroundMusic.play();
+        soundBtn.classList.remove('sound-off');
+        soundBtn.classList.add('sound-on');
+    } else {
+        backgroundMusic.pause();
+        soundBtn.classList.remove('sound-on');
+        soundBtn.classList.add('sound-off');
+    }
+});
 
 
 
@@ -547,6 +572,8 @@ function gameLoop(timestamp) {
 }
 
 
-bg.onload = () =>requestAnimationFrame(gameLoop);
+bg.onload = () =>{ 
+    requestAnimationFrame(gameLoop);
+ };
 
 
