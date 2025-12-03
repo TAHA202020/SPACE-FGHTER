@@ -1,13 +1,143 @@
 
 const canvas = document.getElementById('myCanvas');
+canvas.height=document.body.clientHeight;
+canvas.width=600;
 let last = 0;
 const objects = [];
 const ctx=canvas.getContext("2d");
 let playerShip;
 
+
+
+
+
+
+
+
+
+
+
+let plasmaSprite = new Image();
+plasmaSprite.src = "plasma.png"; // your sprite path
+
+let explosionSprite = new Image();
+explosionSprite.src = "explosion.png"; // your explosion sprite sheet path
+
+
 let enemies = [];
 
 let focusedShip ;
+
+class Explosion{
+  //plays ones
+    constructor(x, y, spriteSheet, frameSpeed=1) {
+        this.x = x;
+        this.y = y;
+        this.spriteSheet = spriteSheet;
+        this.frameWidth = 32;
+        this.frameHeight = 32;
+        this.frameCount = 7;
+        this.frameSpeed = frameSpeed;
+        this.currentFrame = 0;
+        this.accumulator = 0;
+    }
+    update(dt) {
+        this.accumulator += dt;
+        if (this.accumulator > 1 / this.frameSpeed) {
+            this.currentFrame = this.currentFrame + 1;
+            this.accumulator = 0;
+            if (this.currentFrame >= this.frameCount) {
+                const index = objects.indexOf(this);
+                if (index > -1) {
+                    objects.splice(index, 1);
+                }
+            }
+        }
+    }
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.scale(5,5);
+        ctx.drawImage(
+            this.spriteSheet,
+            this.currentFrame * this.frameWidth, 0,
+            this.frameWidth, this.frameHeight,
+            -this.frameWidth / 2, -this.frameHeight / 2,
+            this.frameWidth, this.frameHeight
+        );
+        ctx.restore();
+    } 
+    
+}
+
+
+
+
+
+
+
+class Plasma {
+    constructor(x, y, angle,enemy, speed=100 ,isLast=false ,sprite) {
+        this.x = x;
+        this.y = y;
+        this.angle = angle;
+        this.speed = speed;
+        this.enemy = enemy;
+        this.isLast=isLast;
+        this.sprite = sprite;
+    }
+
+
+    collideWithEnemy() {
+        const dx = this.x - (this.enemy.x + this.enemy.width / 2);
+        const dy = this.y - (this.enemy.y + this.enemy.height / 2);
+        const distance = Math.hypot(dx, dy);
+        const radius = Math.max(this.enemy.width, this.enemy.height) / 2;
+
+        if (distance <= radius) {
+            return true;
+        }
+        return false;
+    }
+    update(dt) {
+      if(this.collideWithEnemy() ){
+          console.log("hit enemy");
+          console.log(this.isLast);
+          if(this.isLast){
+            this.enemy.initiateExplosion();
+            const index = objects.indexOf(this.enemy);
+            if (index > -1) {
+                objects.splice(index, 1);
+            }
+          }else{
+          }
+          const plasmaIndex = objects.indexOf(this);
+          if (plasmaIndex > -1) {
+              objects.splice(plasmaIndex, 1);
+          }
+          return;
+      }
+        this.x += Math.cos(this.angle) * this.speed * dt;
+        this.y += Math.sin(this.angle) * this.speed * dt;
+    }
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle + Math.PI / 2);
+        //make plasma biger
+        ctx.drawImage(
+            this.sprite,
+            0, 0,
+            this.sprite.width, this.sprite.height,
+            -this.sprite.width / 2, -this.sprite.height / 2,
+            this.sprite.width, this.sprite.height
+        );
+      ctx.restore();
+    }
+}
+
+
+
 
 
 
@@ -22,11 +152,11 @@ class EnemyShip {
         this.frameHeight = 58;
         this.speed=speed;
         this.isFocused=false;
-        this.letters=word.split('');
         this.word=word;
-        
+        this.expectedCharIndex=0;
         const enemyCx = this.x + this.width / 2;
         const enemyCy = this.y + this.height / 2;
+        this.isDestroyed=false;
 
         const playerCx = playerShip.x + playerShip.frameWidth / 2;
         const playerCy = playerShip.y + playerShip.frameHeight / 2;
@@ -40,8 +170,6 @@ class EnemyShip {
     }
   update(dt) {
     if(this.collidedWithPlayer(playerShip)){
-        console.log("you lost");
-        return;
     }
     const dx = playerShip.x  - this.x;
     const dy = playerShip.y - this.y;
@@ -56,6 +184,20 @@ class EnemyShip {
     this.x += nx * this.speed * dt;
     this.y += ny * this.speed * dt;
   }
+  initiateExplosion() {
+    const explosion = new Explosion(
+        this.x + this.width / 2,
+        this.y + this.height / 2,
+        explosionSprite,
+        25
+    );
+    objects.push(explosion);
+  }
+
+
+
+
+
 
   collidedWithPlayer() {
 
@@ -108,74 +250,73 @@ class EnemyShip {
   );
   ctx.rotate(-(this.angle - Math.PI / 2));
   // Draw a circle instead of a rectangle
-  ctx.beginPath();
-  const radius = Math.max(this.width, this.height) / 2 - 2; // circle radius
-  ctx.arc(0, 0, radius, 0, Math.PI * 2); // center at origin
-  ctx.strokeStyle = "red";
-  ctx.lineWidth = 1;
-  ctx.stroke();
   ctx.restore();
-  this.drawTextWithBackground(ctx, this.word, this.x + this.width / 2, this.y - 5, "white", "black", 4);
+  this.drawTextWithBackground(ctx, this.word.substring(this.expectedCharIndex), this.x - 20, this.y +this.frameHeight + 5, "white", "#0000004d", 4);
 
 }
- drawTextWithBackground(ctx, text, x, y, textColor, bgColor, padding = 4) {
-    // 1. Get Text Metrics
-    // IMPORTANT: The font and text properties (like ctx.font, ctx.textAlign) 
-    // must be set on the context before this function is called.
+  drawTextWithBackground(ctx, text, x, y, textColor, bgColor, padding = 7) {
+    if (!text || text.length === 0) return;
+
+    const canvas = ctx.canvas;
+
+    // 1. Measure text
     const metrics = ctx.measureText(text);
-    
-    // Calculate dimensions based on metrics
     const textWidth = metrics.width;
-    
-    // Calculate the precise height of the bounding box
     const textHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
-    
-    // 2. Calculate Background Box Position and Size
-    
-    // Total width including padding
-    const bgWidth = textWidth + padding * 2; 
-    
-    // Total height including padding
-    const bgHeight = textHeight + padding * 2; 
 
-    // Adjust the starting X and Y position for the rectangle
-    // The canvas origin (x, y) usually refers to the text baseline.
-    
-    let bgX = x;
-    let bgY = y;
+    // 2. Compute background dimensions
+    const bgWidth = textWidth + padding * 2;
+    const bgHeight = textHeight + padding * 2;
 
-    // Adjust X based on horizontal alignment (default is 'left')
-    // If ctx.textAlign is 'center', the metrics.width is centered around x.
+    // 3. Compute initial bg X position based on alignment
+    let bgX;
     if (ctx.textAlign === 'center') {
         bgX = x - bgWidth / 2;
     } else if (ctx.textAlign === 'right' || ctx.textAlign === 'end') {
         bgX = x - bgWidth;
-    } else { // 'left' or 'start'
-        // If left-aligned, the text starts at x, so the box starts at x.
+    } else { // left or start
         bgX = x - padding;
     }
 
-    // Adjust Y based on vertical baseline (default is 'alphabetic')
-    // The rectangle needs to start at the top edge of the text + padding.
-    bgY = y - metrics.actualBoundingBoxAscent - padding;
+    // 4. Compute bg Y position (baseline-based)
+    let bgY = y - metrics.actualBoundingBoxAscent - padding;
 
+    // 5. Clamp background box inside canvas boundaries
+    if (bgX < 0) bgX = 0;
+    if (bgY < 0) bgY = 0;
+    if (bgX + bgWidth > canvas.width) bgX = canvas.width - bgWidth;
+    if (bgY + bgHeight > canvas.height) bgY = canvas.height - bgHeight;
 
-    // 3. Draw the Background Rectangle
+    // 6. Adjust text position to align with corrected bg box
+    let correctedTextX = x;
+    if (ctx.textAlign === 'center') {
+        correctedTextX = bgX + bgWidth / 2;
+    } else if (ctx.textAlign === 'right' || ctx.textAlign === 'end') {
+        correctedTextX = bgX + bgWidth;
+    } else {
+        correctedTextX = bgX + padding;
+    }
+
+    // Move baseline Y to match the corrected background top
+    const correctedTextY = bgY + padding + metrics.actualBoundingBoxAscent;
+
+    // 7. Draw background + text
     ctx.save();
     ctx.fillStyle = bgColor;
     ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
 
-    // 4. Draw the Text
-    ctx.fillStyle = textColor;
-    ctx.fillText(text, x, y);
-    
+    ctx.fillStyle = this?.isFocused ? "yellow" : textColor;
+    ctx.font = "bold 20px Helvetica";
+
+    ctx.fillText(text, correctedTextX, correctedTextY);
     ctx.restore();
 }
+
 
 } 
 
 class PlayerShip {
-  constructor( spriteSheet, frameWidth, frameHeight, frameCount, frameSpeed) {
+  constructor( spriteSheet, frameWidth, frameHeight, frameCount, frameSpeed=300) {
     this.x=(canvas.width-frameHeight)/2;
     this.y=canvas.height - frameHeight;
     this.spriteSheet = spriteSheet;  
@@ -184,9 +325,34 @@ class PlayerShip {
     this.frameCount = frameCount;   
     this.frameSpeed = frameSpeed;    
     this.currentFrame = 0;
+    this.rotation = 0;
     this.accumulator = 0;     
     this.state="idle";   
+    
   }
+  firePlasma(enemy ,isLast=false) {
+    const playerCx = this.x + this.frameWidth / 2;
+    const playerCy = this.y + this.frameHeight / 2;
+    const enemyCx = enemy.x + enemy.width / 2;
+    const enemyCy = enemy.y + enemy.height / 2;
+    const dx = enemyCx - playerCx;
+    const dy = enemyCy - playerCy;
+    const angle = Math.atan2(dy, dx) ;
+
+    const plasma = new Plasma(playerCx, playerCy, angle,enemy ,300 ,isLast ,plasmaSprite);
+    objects.push(plasma);
+
+    if(this.state!=="shooting"){
+      this.state="shooting";
+    }
+    else{
+      this.resetAnimation();
+    }
+  }
+
+
+
+
   getConeXRange(y1) {
     const x_c = this.x;  // apex x
     const y_c = this.y;  // apex y
@@ -226,7 +392,6 @@ class PlayerShip {
   }
 
   playshootingAnimation(){
-    console.log("playing shooting animation");
     if (this.accumulator > 1 / this.frameSpeed) 
     {
         if(!(this.currentFrame < this.frameCount -1)){
@@ -260,45 +425,36 @@ class PlayerShip {
   );
 
   // Draw circle hitbox centered at origin
-  ctx.beginPath();
-  const radius = Math.max(this.frameWidth, this.frameHeight) / 2 - 1;
-  ctx.arc(0, 0, radius, 0, Math.PI * 2);
-  ctx.strokeStyle = "red";
-  ctx.lineWidth = 1;
-  ctx.stroke();
 
   ctx.restore();
 }
-
 }
 
 const idleImage = new Image();
 idleImage.src = "ship.png"; // your sprite sheet path
 idleImage.onload = () => {
-  console.log("Image loaded");
   const sprite = new PlayerShip(      // initial x, y
   idleImage,       // your sprite sheet
   24, 24,          // frameWidth, frameHeight
   7,               // total frames
-  2               // frames per second (adjust as needed)
+  20               // frames per second (adjust as needed)
 );
 
 playerShip=sprite;
 objects.push(sprite);
-};
 const enemyImage = new Image();
 enemyImage.src = "destroyer.png";
 
 enemyImage.onload = () => {
-    console.log("Enemy Image loaded");
 
-    const enemyCount = 1;           // number of enemies
+    const enemyCount = 5;           // number of enemies
     const enemyWidth = 43;
     const enemyHeight = 58;
 
     for (let i = 0; i < enemyCount; i++) {
-        // Random Y between -15 and -5
-        const randomY = -70 // = [-15, -10]
+
+         // = [-70, -100]
+        const randomY = Math.random() * -150 - 50;
 
         // Get the cone range from playerShip for this Y
         const range = playerShip.getConeXRange(randomY);
@@ -318,6 +474,8 @@ enemyImage.onload = () => {
         objects.push(enemy);
     }
 };
+};
+
 
 const bg = new Image();
 
@@ -325,6 +483,48 @@ const bg = new Image();
 bg.src = 'background.jpg';
 let scrollSpeed = 0.1; // How many pixels to move per frame
 let backgroundY = 0;
+
+
+
+window.addEventListener('keyup', (e) => {
+    const key = e.key;
+    if (focusedShip) {
+        const expectedChar = focusedShip.word.charAt(focusedShip.expectedCharIndex);
+        if (key === expectedChar) {
+            focusedShip.expectedCharIndex++;
+            if (focusedShip.expectedCharIndex >= focusedShip.word.length) {
+                focusedShip.isDestroyed=true;
+                playerShip.firePlasma(focusedShip, true);
+                focusedShip = null;
+            }else{
+                playerShip.firePlasma(focusedShip);
+            }
+        }
+    }
+    else{
+        for (const enemy of enemies) {
+            const expectedChar = enemy.word.charAt(enemy.expectedCharIndex);
+            if (key === expectedChar) {
+                focusedShip = enemy;
+                //Calculate rotate angle of player towards enemy
+                const enemyCx = enemy.x + enemy.width / 2;
+                const enemyCy = enemy.y + enemy.height / 2;
+
+                const playerCx = playerShip.x + playerShip.frameWidth / 2;
+                const playerCy = playerShip.y + playerShip.frameHeight / 2;
+                const dx = enemyCx - playerCx;
+                const dy = enemyCy - playerCy;
+                playerShip.rotation = Math.atan2(dy, dx) + Math.PI / 2;
+                playerShip.firePlasma(enemy);
+                enemy.isFocused = true;
+                enemy.expectedCharIndex++;
+                break;
+            }
+        }
+    }
+
+
+});
 
 
 function gameLoop(timestamp) {
@@ -346,4 +546,7 @@ function gameLoop(timestamp) {
   requestAnimationFrame(gameLoop);
 }
 
-requestAnimationFrame(gameLoop);
+
+bg.onload = () =>requestAnimationFrame(gameLoop);
+
+
