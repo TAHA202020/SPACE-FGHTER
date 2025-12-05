@@ -119,13 +119,9 @@ class GameSettings {
         const enemyImage = enemyImages[randomTypeKey];
         const enemyWidth = enemyType.width;
         const enemyHeight = enemyType.height;
-        // RANDOM SPAWN X ANYWHERE ON TOP
         const randomX = Math.random() * (canvas.width - enemyWidth);
-        // RANDOM SPAWN ABOVE SCREEN
         const randomY = -Math.random() * 200 - enemyHeight;
-        // RANDOM SPEED (±40% variation)
-        const speedVariance = (Math.random() * 0.8 + 0.6);
-        const finalSpeed = this.baseEnemySpeed * speedVariance;
+        const finalSpeed = this.baseEnemySpeed;
 
         const enemy = new EnemyShip(
             randomX,
@@ -215,25 +211,36 @@ class FocusIndicator {
         ctx.restore();
     }
 }
+let plasmaSplashSheet=new Image();
+plasmaSplashSheet.src="Effect95.png"
 
+function spawnPlasmaSplash(x, y) {
+    objects.push(new PlasmaSplash(x, y, plasmaSplashSheet, 100));
+}
+
+ 
 class PlasmaSplash {
     constructor(x, y, spriteSheet, frameSpeed = 20) {
         this.x = x;
         this.y = y;
         this.spriteSheet = spriteSheet;
 
-        this.frameWidth = 32;
-        this.frameHeight = 32;
-        this.frameCount = 6;
+        this.frameWidth = 128;
+        this.frameHeight = 128;
+
+        this.columns = 4;         // 4 frames per row
+        this.rows = 4;            // 4 rows
+        this.frameCount = 16;     // total frames
 
         this.currentFrame = 0;
         this.accumulator = 0;
         this.frameSpeed = frameSpeed;
+
+        this.scale = 1; // you can scale it if you want
     }
 
     update(dt) {
         this.accumulator += dt;
-
         if (this.accumulator >= 1 / this.frameSpeed) {
             this.currentFrame++;
             this.accumulator = 0;
@@ -246,20 +253,29 @@ class PlasmaSplash {
     }
 
     draw(ctx) {
+        const col = this.currentFrame % this.columns;
+        const row = Math.floor(this.currentFrame / this.columns);
+
         ctx.save();
         ctx.translate(this.x, this.y);
+        ctx.scale(this.scale, this.scale);
 
         ctx.drawImage(
             this.spriteSheet,
-            this.currentFrame * this.frameWidth, 0,
-            this.frameWidth, this.frameHeight,
-            -this.frameWidth / 2, -this.frameHeight / 2,
-            this.frameWidth, this.frameHeight
+            col * this.frameWidth,       // source X
+            row * this.frameHeight,      // source Y
+            this.frameWidth,             // source width
+            this.frameHeight,            // source height
+            -this.frameWidth / 2,        // center draw
+            -this.frameHeight / 2,
+            this.frameWidth,
+            this.frameHeight
         );
 
         ctx.restore();
     }
 }
+
 
 
 
@@ -299,56 +315,70 @@ let plasmaSprite = new Image();
 plasmaSprite.src = "plasma.png"; // your sprite path
 
 let explosionSprite = new Image();
-explosionSprite.src = "explosion.png"; // your explosion sprite sheet path
+explosionSprite.src = "exp2_0.png"; // your explosion sprite sheet path
 
 
 let enemies = [];
 
 let focusedShip ;
 
-class Explosion{
-  //plays ones
-    constructor(x, y, spriteSheet, frameSpeed=1) {
+class Explosion {
+    constructor(x, y, spriteSheet, frameSpeed = 1) {
         this.x = x;
         this.y = y;
         this.spriteSheet = spriteSheet;
-        this.frameWidth = 32;
-        this.frameHeight = 32;
-        this.frameCount = 7;
+
+        this.frameWidth = 64;
+        this.frameHeight = 64;
+
+        this.columns = 4;      // 4 frames per row
+        this.rows = 4;         // 4 rows
+        this.frameCount = 16;  // total frames
+
         this.frameSpeed = frameSpeed;
         this.currentFrame = 0;
         this.accumulator = 0;
     }
+
     update(dt) {
         this.accumulator += dt;
+
         if (this.accumulator > 1 / this.frameSpeed) {
-            this.currentFrame = this.currentFrame + 1;
+            this.currentFrame++;
             this.accumulator = 0;
+
+            // remove from object list when finished
             if (this.currentFrame >= this.frameCount) {
                 const index = objects.indexOf(this);
-                if (index > -1) {
-                    objects.splice(index, 1);
-                }
+                if (index !== -1) objects.splice(index, 1);
             }
         }
     }
+
     draw(ctx) {
+        // Compute row + column based on currentFrame
+        const col = this.currentFrame % this.columns;            // 0–3
+        const row = Math.floor(this.currentFrame / this.columns); // 0–3
+
         ctx.save();
         ctx.translate(this.x, this.y);
-        ctx.scale(5,5);
+        ctx.scale(1.5,1.5)
+
         ctx.drawImage(
             this.spriteSheet,
-            this.currentFrame * this.frameWidth, 0,
-            this.frameWidth, this.frameHeight,
-            -this.frameWidth / 2, -this.frameHeight / 2,
-            this.frameWidth, this.frameHeight
+            col * this.frameWidth,          // source X
+            row * this.frameHeight,         // source Y
+            this.frameWidth,                // source width
+            this.frameHeight,               // source height
+            -this.frameWidth / 2,           // draw centered
+            -this.frameHeight / 2,
+            this.frameWidth,
+            this.frameHeight
         );
+
         ctx.restore();
-    } 
-    
+    }
 }
-
-
 
 
 
@@ -379,6 +409,9 @@ class Plasma {
     }
     update(dt) {
       if(this.collideWithEnemy() ){
+        
+
+
           if(this.isLast){
             this.enemy.initiateExplosion();
             const index = objects.indexOf(this.enemy);
@@ -387,6 +420,8 @@ class Plasma {
                 gameSettings.KillEnemy();
             }
           }else{
+            this.enemy.applyKnockback(5,0.5)
+            spawnPlasmaSplash(this.x,this.y)
             this.enemy.isHit=true;
           }
           const plasmaIndex = objects.indexOf(this);
@@ -435,7 +470,9 @@ class EnemyShip {
         const enemyCx = this.x + this.width / 2;
         const enemyCy = this.y + this.height / 2;
         this.isDestroyed=false;
-        this.isHit=false;
+        this.knockbackVelocity = 0;  // current knockback speed
+        this.knockbackDuration = 0;  // remaining time of knockback
+        this.knockbackAngle = 0; 
 
         const playerCx = playerShip.x + playerShip.frameWidth / 2;
         const playerCy = playerShip.y + playerShip.frameHeight / 2;
@@ -447,14 +484,29 @@ class EnemyShip {
         // Angle toward player
         this.angle = Math.atan2(dy, dx);
     }
+    applyKnockback(force = 100, duration = 0.15) {
+    this.knockbackAngle = this.angle + Math.PI; // opposite of current angle
+    this.knockbackVelocity = force;             // pixels per second
+    this.knockbackDuration = duration;          // seconds
+}
   update(dt) {
     if(this.collidedWithPlayer(playerShip)){
     }
-    if(this.isHit){
-      this.isHit=false;
-      return;
+    if (this.knockbackDuration > 0) {
+        const dx = Math.cos(this.knockbackAngle) * this.knockbackVelocity * dt;
+        const dy = Math.sin(this.knockbackAngle) * this.knockbackVelocity * dt;
+
+        this.x += dx;
+        this.y += dy;
+
+        this.knockbackDuration -= dt;
+        if (this.knockbackDuration <= 0) {
+            this.knockbackVelocity = 0;
+        }
+        return; // skip normal movement while being knocked back
     }
-      
+
+
     const dx = playerShip.x  - this.x;
     const dy = playerShip.y - this.y;
 
@@ -473,7 +525,7 @@ class EnemyShip {
         this.x + this.width / 2,
         this.y + this.height / 2,
         explosionSprite,
-        25
+        18
     );
     objects.push(explosion);
   }
