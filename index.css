@@ -10,7 +10,8 @@ body{
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background-color: #000115;
+    background-image: url("./page.png");
+    background-repeat: repeat;
 }
 
 .sound{

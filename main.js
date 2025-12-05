@@ -7,9 +7,262 @@ const objects = [];
 const ctx=canvas.getContext("2d");
 let playerShip;
 
+let focusCircleImage = new Image();
+
+const ENEMY_TYPES = {
+    DESTROYER: {
+        image: "destroyer.png",
+        width: 43,
+        height: 58,
+        baseSpeed: 50
+    },
+    BULLET: {
+        image: "bullet.png",
+        width: 20,
+        height: 24,
+        baseSpeed: 120
+    },
+};
+const enemyImages = {};
+
+
+
+function loadFocusCircleImage() {
+    return new Promise(resolve => {
+        focusCircleImage.src = 'emp.png';
+        focusCircleImage.onload = () => {
+            resolve();
+        };
+    });}
+
+function loadEnemyTypeImages() {
+    return Promise.all(
+        Object.entries(ENEMY_TYPES).map(([key, type]) => {
+            return new Promise(resolve => {
+                const img = new Image();
+                img.src = type.image;
+                img.onload = () => {
+                    enemyImages[key] = img;
+                    resolve();
+                };
+            });
+        })
+    );
+}
 const backgroundMusic = new Audio('soundtrack.mp3');
 backgroundMusic.loop = true;
 backgroundMusic.volume = 0.5; // Set volume (0.0 to 1.0)
+
+
+const idleImage = new Image();
+idleImage.src = "ship.png"; // your sprite sheet path
+const enemyImage = new Image();
+enemyImage.src = "destroyer.png";
+
+const bg = new Image();
+
+// IMPORTANT: Use a tileable image!
+bg.src = 'background.jpg';
+
+
+
+function loadPlayerImage() {    
+  return new Promise((resolve) => {
+        idleImage.onload = () => {
+            playerShip = new PlayerShip(idleImage, 24, 24, 7, 40);
+            objects.push(playerShip);
+            resolve();
+        };
+      })}
+
+
+
+
+class GameSettings {
+    constructor() {
+        this.waveCount = 1;
+
+        this.enemiesPerWave = 5;
+        this.enemiesPerWaveIncrement = 2;
+
+        this.baseEnemySpeed = 50;
+        this.enemySpeedIncrement = 20;
+
+        this.minSpawnDelay = 300;
+        this.maxSpawnDelay = 1200;
+
+        this.enemiesKilled = 0;
+
+        // pool of random words
+        this.wordPool = ["alien", "meteor", "attack", "orbit", "galaxy", "laser", "nova", "comet"];
+    }
+
+    nextWave() {
+        this.waveCount++;
+        this.enemiesPerWave += this.enemiesPerWaveIncrement;
+        this.baseEnemySpeed += this.enemySpeedIncrement;
+        this.enemiesKilled = 0;
+    }
+
+    getRandomWord() {
+        return this.wordPool[Math.floor(Math.random() * this.wordPool.length)];
+    }
+
+    getRandomSpawnDelay() {
+        return Math.random() * (this.maxSpawnDelay - this.minSpawnDelay) + this.minSpawnDelay;
+    }
+
+    initEnemy() {
+        const enemyTypeKeys = Object.keys(ENEMY_TYPES);
+        const randomTypeKey = enemyTypeKeys[Math.floor(Math.random() * enemyTypeKeys.length)];
+        const enemyType = ENEMY_TYPES[randomTypeKey];
+        const enemyImage = enemyImages[randomTypeKey];
+        const enemyWidth = enemyType.width;
+        const enemyHeight = enemyType.height;
+        // RANDOM SPAWN X ANYWHERE ON TOP
+        const randomX = Math.random() * (canvas.width - enemyWidth);
+        // RANDOM SPAWN ABOVE SCREEN
+        const randomY = -Math.random() * 200 - enemyHeight;
+        // RANDOM SPEED (±40% variation)
+        const speedVariance = (Math.random() * 0.8 + 0.6);
+        const finalSpeed = this.baseEnemySpeed * speedVariance;
+
+        const enemy = new EnemyShip(
+            randomX,
+            randomY,
+            enemyWidth,
+            enemyHeight,
+            enemyImage,
+            this.getRandomWord(),
+            finalSpeed
+        );
+        enemies.push(enemy);
+        objects.push(enemy);
+    }
+
+    wait(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async initEnemySpawner() {
+        for (let i = 0; i < this.enemiesPerWave; i++) {
+            this.initEnemy();
+
+            // RANDOM SPAWN DELAY each enemy
+            const delay = this.getRandomSpawnDelay();
+            await this.wait(delay);
+        }
+    }
+
+    async KillEnemy() {
+        this.enemiesKilled++;
+
+        if (this.enemiesKilled >= this.enemiesPerWave) {
+            console.log("Wave Completed!");
+
+            await this.wait(1500);
+
+            console.log("Starting next wave!");
+            this.nextWave();
+
+            this.initEnemySpawner();
+        }
+    }
+}
+class FocusIndicator {
+    constructor(enemy) {
+        this.enemy = enemy;
+        this.sprite = focusCircleImage;
+        this.scale = 5;       
+        this.targetScale = 0.1; 
+        this.shrinkSpeed = 16;  
+    }
+
+    update(dt) {
+        console.log(dt);
+        // Smooth shrink animation
+        if (this.scale > this.targetScale) {
+            
+            this.scale -= this.shrinkSpeed * dt;
+            if (this.scale < this.targetScale) {
+                this.scale = this.targetScale;
+            }
+        }else
+        {
+            const index = objects.indexOf(this);
+            if (index > -1) objects.splice(index, 1);
+
+        }  
+    }
+
+    draw(ctx) {
+        if (!this.enemy) return;
+
+        const cx = this.enemy.x + this.enemy.width / 2;
+        const cy = this.enemy.y + this.enemy.height / 2;
+
+        const size = 150 * this.scale;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.drawImage(
+            this.sprite,
+            -size / 2,
+            -size / 2,
+            size,
+            size
+        );
+        ctx.restore();
+    }
+}
+
+class PlasmaSplash {
+    constructor(x, y, spriteSheet, frameSpeed = 20) {
+        this.x = x;
+        this.y = y;
+        this.spriteSheet = spriteSheet;
+
+        this.frameWidth = 32;
+        this.frameHeight = 32;
+        this.frameCount = 6;
+
+        this.currentFrame = 0;
+        this.accumulator = 0;
+        this.frameSpeed = frameSpeed;
+    }
+
+    update(dt) {
+        this.accumulator += dt;
+
+        if (this.accumulator >= 1 / this.frameSpeed) {
+            this.currentFrame++;
+            this.accumulator = 0;
+
+            if (this.currentFrame >= this.frameCount) {
+                const index = objects.indexOf(this);
+                if (index > -1) objects.splice(index, 1);
+            }
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        ctx.drawImage(
+            this.spriteSheet,
+            this.currentFrame * this.frameWidth, 0,
+            this.frameWidth, this.frameHeight,
+            -this.frameWidth / 2, -this.frameHeight / 2,
+            this.frameWidth, this.frameHeight
+        );
+
+        ctx.restore();
+    }
+}
+
+
+
 
 
 class AudioManager{
@@ -126,15 +379,15 @@ class Plasma {
     }
     update(dt) {
       if(this.collideWithEnemy() ){
-          console.log("hit enemy");
-          console.log(this.isLast);
           if(this.isLast){
             this.enemy.initiateExplosion();
             const index = objects.indexOf(this.enemy);
             if (index > -1) {
                 objects.splice(index, 1);
+                gameSettings.KillEnemy();
             }
           }else{
+            this.enemy.isHit=true;
           }
           const plasmaIndex = objects.indexOf(this);
           if (plasmaIndex > -1) {
@@ -147,7 +400,7 @@ class Plasma {
     }
     draw(ctx) {
         ctx.save();
-        ctx.translate(this.x, this.y);
+        ctx.translate(this.x , this.y);
         ctx.rotate(this.angle + Math.PI / 2);
         //make plasma biger
         ctx.drawImage(
@@ -167,14 +420,14 @@ class Plasma {
 
 
 class EnemyShip {
-    constructor(x, y, width, height ,spriteSheet ,word="aliefffffffffffffn",speed=30 ) {
+    constructor(x, y, width, height ,spriteSheet ,word="alien",speed=30 ) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
         this.spriteSheet=spriteSheet;
-        this.frameWidth = 43;
-        this.frameHeight = 58;
+        this.frameWidth = this.width;
+        this.frameHeight = this.height;
         this.speed=speed;
         this.isFocused=false;
         this.word=word;
@@ -182,6 +435,7 @@ class EnemyShip {
         const enemyCx = this.x + this.width / 2;
         const enemyCy = this.y + this.height / 2;
         this.isDestroyed=false;
+        this.isHit=false;
 
         const playerCx = playerShip.x + playerShip.frameWidth / 2;
         const playerCy = playerShip.y + playerShip.frameHeight / 2;
@@ -196,6 +450,11 @@ class EnemyShip {
   update(dt) {
     if(this.collidedWithPlayer(playerShip)){
     }
+    if(this.isHit){
+      this.isHit=false;
+      return;
+    }
+      
     const dx = playerShip.x  - this.x;
     const dy = playerShip.y - this.y;
 
@@ -276,44 +535,44 @@ class EnemyShip {
   ctx.rotate(-(this.angle - Math.PI / 2));
   // Draw a circle instead of a rectangle
   ctx.restore();
-  this.drawTextWithBackground(ctx, this.word.substring(this.expectedCharIndex), this.x - 20, this.y +this.frameHeight + 5, "white", "#0000004d", 4);
+  this.drawTextWithBackground(ctx, this.word.substring(this.expectedCharIndex), this.x - 20, this.y +this.height + 5, "white", "black", 7);
 
 }
   drawTextWithBackground(ctx, text, x, y, textColor, bgColor, padding = 7) {
     if (!text || text.length === 0) return;
 
     const canvas = ctx.canvas;
-
-    // 1. Measure text
+    ctx.font = "16px Helvetica";    
     const metrics = ctx.measureText(text);
     const textWidth = metrics.width;
     const textHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
 
-    // 2. Compute background dimensions
     const bgWidth = textWidth + padding * 2;
     const bgHeight = textHeight + padding * 2;
 
-    // 3. Compute initial bg X position based on alignment
     let bgX;
     if (ctx.textAlign === 'center') {
         bgX = x - bgWidth / 2;
     } else if (ctx.textAlign === 'right' || ctx.textAlign === 'end') {
         bgX = x - bgWidth;
-    } else { // left or start
+    } else {
         bgX = x - padding;
     }
 
-    // 4. Compute bg Y position (baseline-based)
     let bgY = y - metrics.actualBoundingBoxAscent - padding;
 
-    // 5. Clamp background box inside canvas boundaries
+    // ➜ SHIFT EVERYTHING TO THE RIGHT BY 100% OF ITS OWN WIDTH
+    const shiftX = bgWidth/2 - 10;
+    bgX -= shiftX;
+    bgY +=13; // No vertical shift
+
+    // Clamp
     if (bgX < 0) bgX = 0;
     if (bgY < 0) bgY = 0;
     if (bgX + bgWidth > canvas.width) bgX = canvas.width - bgWidth;
     if (bgY + bgHeight > canvas.height) bgY = canvas.height - bgHeight;
 
-    // 6. Adjust text position to align with corrected bg box
-    let correctedTextX = x;
+    let correctedTextX;
     if (ctx.textAlign === 'center') {
         correctedTextX = bgX + bgWidth / 2;
     } else if (ctx.textAlign === 'right' || ctx.textAlign === 'end') {
@@ -322,20 +581,19 @@ class EnemyShip {
         correctedTextX = bgX + padding;
     }
 
-    // Move baseline Y to match the corrected background top
     const correctedTextY = bgY + padding + metrics.actualBoundingBoxAscent;
 
-    // 7. Draw background + text
+    // Apply same shift to text
+
     ctx.save();
     ctx.fillStyle = bgColor;
     ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
 
-    ctx.fillStyle = this?.isFocused ? "yellow" : textColor;
-    ctx.font = "bold 20px Helvetica";
-
+    ctx.fillStyle = this?.isFocused ? "red" : textColor;
     ctx.fillText(text, correctedTextX, correctedTextY);
     ctx.restore();
 }
+
 
 
 } 
@@ -343,7 +601,7 @@ class EnemyShip {
 class PlayerShip {
   constructor( spriteSheet, frameWidth, frameHeight, frameCount, frameSpeed=300) {
     this.x=(canvas.width-frameHeight)/2;
-    this.y=canvas.height - frameHeight;
+    this.y=canvas.height - frameHeight -10;
     this.spriteSheet = spriteSheet;  
     this.frameWidth = frameWidth;
     this.frameHeight = frameHeight;
@@ -364,15 +622,8 @@ class PlayerShip {
     const dy = enemyCy - playerCy;
     const angle = Math.atan2(dy, dx) ;
 
-    const plasma = new Plasma(playerCx, playerCy, angle,enemy ,300 ,isLast ,plasmaSprite);
+    const plasma = new Plasma(playerCx, playerCy, angle,enemy ,1500 ,isLast ,plasmaSprite);
     objects.push(plasma);
-
-    if(this.state!=="shooting"){
-      this.state="shooting";
-    }
-    else{
-      this.resetAnimation();
-    }
   }
 
 
@@ -455,64 +706,21 @@ class PlayerShip {
 }
 }
 
-const idleImage = new Image();
-idleImage.src = "ship.png"; // your sprite sheet path
-idleImage.onload = () => {
-  const sprite = new PlayerShip(      // initial x, y
-  idleImage,       // your sprite sheet
-  24, 24,          // frameWidth, frameHeight
-  7,               // total frames
-  20               // frames per second (adjust as needed)
-);
-
-playerShip=sprite;
-objects.push(sprite);
-const enemyImage = new Image();
-enemyImage.src = "destroyer.png";
-
-enemyImage.onload = () => {
-
-    const enemyCount = 5;           // number of enemies
-    const enemyWidth = 43;
-    const enemyHeight = 58;
-
-    for (let i = 0; i < enemyCount; i++) {
-
-         // = [-70, -100]
-        const randomY = Math.random() * -150 - 50;
-
-        // Get the cone range from playerShip for this Y
-        const range = playerShip.getConeXRange(randomY);
-
-        // Random X inside that cone
-        const randomX = Math.random() * (range.xMax - range.xMin) + range.xMin;
-
-        // Create enemy
-        const enemy = new EnemyShip(
-            randomX, randomY,   
-            enemyWidth, enemyHeight,
-            enemyImage,
-            "alien"
-        );
-        enemies.push(enemy);
-
-        objects.push(enemy);
-    }
-};
-};
 
 
-const bg = new Image();
 
-// IMPORTANT: Use a tileable image!
-bg.src = 'background.jpg';
-let scrollSpeed = 0.1; // How many pixels to move per frame
+
+
+
+
+
+let scrollSpeed = 0.08; // How many pixels to move per frame
 let backgroundY = 0;
 
 
 
 window.addEventListener('keyup', (e) => {
-    const key = e.key;
+    const key = e.key.toLocaleLowerCase();
     if (focusedShip) {
         const expectedChar = focusedShip.word.charAt(focusedShip.expectedCharIndex);
         if (key === expectedChar) {
@@ -524,6 +732,11 @@ window.addEventListener('keyup', (e) => {
             }else{
                 playerShip.firePlasma(focusedShip);
             }
+        }else{
+            if(playerShip.state!=="shooting")
+                playerShip.state="shooting"
+            else
+                playerShip.resetAnimation();
         }
     }
     else{
@@ -543,9 +756,16 @@ window.addEventListener('keyup', (e) => {
                 playerShip.firePlasma(enemy);
                 enemy.isFocused = true;
                 enemy.expectedCharIndex++;
-                break;
+                objects.push(new FocusIndicator(enemy));
+                return;
             }
         }
+        if(playerShip.state!=="shooting"){
+            playerShip.state="shooting"
+        }else{
+            playerShip.resetAnimation();
+        }
+
     }
 
 
@@ -559,21 +779,36 @@ function gameLoop(timestamp) {
   for (const obj of objects) obj.update(dt);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  backgroundY -= scrollSpeed;
-    if (backgroundY <= -bg.height) {
-        backgroundY = 0;
-    }
 
-    ctx.drawImage(bg, 0, backgroundY, canvas.width, bg.height);
-    ctx.drawImage(bg, 0 , backgroundY+bg.height -1, canvas.width,bg.height);
+  // Move background DOWN instead of UP
+  backgroundY += scrollSpeed;
+
+  // Wrap when going down
+  if (backgroundY >= bg.height) {
+      backgroundY = 0;
+  }
+
+  ctx.drawImage(bg, 0, backgroundY - bg.height, canvas.width, bg.height);
+  ctx.drawImage(bg, 0, backgroundY, canvas.width, bg.height);
+
   for (const obj of objects) obj.draw(ctx);
 
   requestAnimationFrame(gameLoop);
 }
 
 
-bg.onload = () =>{ 
-    requestAnimationFrame(gameLoop);
- };
+
+
+const  gameSettings = new GameSettings();
+
+async function startGame() {
+  await loadPlayerImage()
+  await loadEnemyTypeImages();
+  await loadFocusCircleImage();
+  requestAnimationFrame(gameLoop);
+  gameSettings.initEnemySpawner();
+}
+
+startGame();
 
 
