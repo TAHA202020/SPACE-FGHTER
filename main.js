@@ -1,7 +1,7 @@
 
 const canvas = document.getElementById('myCanvas');
-canvas.height=document.body.clientHeight;
-canvas.width=600;
+canvas.height=720;
+canvas.width=480;
 let last = 0;
 const objects = [];
 const ctx=canvas.getContext("2d");
@@ -14,13 +14,13 @@ const ENEMY_TYPES = {
         image: "destroyer.png",
         width: 43,
         height: 58,
-        baseSpeed: 50
+        baseSpeed: 25
     },
     BULLET: {
         image: "bullet.png",
         width: 20,
         height: 24,
-        baseSpeed: 120
+        baseSpeed: 50
     },
 };
 const enemyImages = {};
@@ -63,6 +63,20 @@ const bg = new Image();
 
 // IMPORTANT: Use a tileable image!
 bg.src = 'background.jpg';
+
+
+const aboveBg=new Image();
+
+aboveBg.src="bg.png";
+
+
+
+const gridBg=new Image();
+gridBg.src="grid.png"
+
+
+
+
 
 
 
@@ -121,7 +135,7 @@ class GameSettings {
         const enemyHeight = enemyType.height;
         const randomX = Math.random() * (canvas.width - enemyWidth);
         const randomY = -Math.random() * 200 - enemyHeight;
-        const finalSpeed = this.baseEnemySpeed;
+        const finalSpeed = ENEMY_TYPES[randomTypeKey].baseSpeed;
 
         const enemy = new EnemyShip(
             randomX,
@@ -146,7 +160,7 @@ class GameSettings {
 
             // RANDOM SPAWN DELAY each enemy
             const delay = this.getRandomSpawnDelay();
-            await this.wait(delay);
+            await this.wait(500);
         }
     }
 
@@ -236,7 +250,7 @@ class PlasmaSplash {
         this.accumulator = 0;
         this.frameSpeed = frameSpeed;
 
-        this.scale = 1; // you can scale it if you want
+        this.scale = 0.4; // you can scale it if you want
     }
 
     update(dt) {
@@ -420,7 +434,7 @@ class Plasma {
                 gameSettings.KillEnemy();
             }
           }else{
-            this.enemy.applyKnockback(5,0.5)
+            this.enemy.applyKnockback(5,0.2)
             spawnPlasmaSplash(this.x,this.y)
             this.enemy.isHit=true;
           }
@@ -767,7 +781,9 @@ class PlayerShip {
 
 
 let scrollSpeed = 0.08; // How many pixels to move per frame
+let gridscrollSpeed= 0.5
 let backgroundY = 0;
+let gridbackgroundY=0;
 
 
 
@@ -839,9 +855,49 @@ function gameLoop(timestamp) {
   if (backgroundY >= bg.height) {
       backgroundY = 0;
   }
+  
 
   ctx.drawImage(bg, 0, backgroundY - bg.height, canvas.width, bg.height);
   ctx.drawImage(bg, 0, backgroundY, canvas.width, bg.height);
+
+  gridbackgroundY += gridscrollSpeed;
+
+// reset every image height to loop cleanly
+if (gridbackgroundY >= gridBg.height) {
+    gridbackgroundY = 0;
+}
+
+if (gridBg.complete) {
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+
+    // create repeat pattern
+    const pattern = ctx.createPattern(gridBg, "repeat");
+
+    // move canvas so the pattern scrolls
+    ctx.translate(0, gridbackgroundY);
+
+    ctx.fillStyle = pattern;
+
+    // fill more than needed so scrolling has no gaps
+    ctx.fillRect(
+        0,
+        -gridBg.height,
+        canvas.width,
+        canvas.height + gridBg.height * 2
+    );
+
+    ctx.restore();
+}
+
+
+
+
+  
+  ctx.globalAlpha = 0.8;
+  ctx.drawImage(aboveBg,0,0,canvas.width,canvas.height)
+  ctx.globalAlpha=1;
+  
 
   for (const obj of objects) obj.draw(ctx);
 

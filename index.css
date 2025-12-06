@@ -31,3 +31,12 @@ body{
 .sound-on{
     background-image: url("./soundon.png");
 }
+.container{
+    position: relative;
+    
+}
+canvas {
+    border: none !important;
+    outline: none !important;
+    box-shadow: 0 0 30px #000;
+}
