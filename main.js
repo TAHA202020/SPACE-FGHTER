@@ -1,4 +1,14 @@
+let totalTyped = 0;
+let correctTyped = 0;
+let score = 0;
+let pausedAccumulated = 0;       // total paused time during current word
+let pausedAt = null; 
 
+let typingStartTime = null;  // time when first word typing started
+let totalTypingTime = 0;     // cumulative typing time (in milliseconds)
+let wpm = 0;                 // global WPM
+
+let MasterVolume =0.5
 const canvas = document.getElementById('myCanvas');
 canvas.height=720;
 canvas.width=480;
@@ -7,6 +17,26 @@ const objects = [];
 const ctx=canvas.getContext("2d");
 let playerShip;
 
+
+
+const hitAudio=new Audio("hit.ogg")
+hitAudio.volume=MasterVolume
+
+const plasmeFire=new Audio("plasma.ogg")
+plasmeFire.volume=MasterVolume
+
+
+const clickSound=new Audio("click.mp3")
+
+clickSound.volume=MasterVolume
+
+const targetFocusAudio=new Audio("target.ogg")
+
+targetFocusAudio.volume=MasterVolume
+
+
+
+
 let focusCircleImage = new Image();
 
 const ENEMY_TYPES = {
@@ -14,7 +44,7 @@ const ENEMY_TYPES = {
         image: "destroyer.png",
         width: 43,
         height: 58,
-        baseSpeed: 25
+        baseSpeed: 25,
     },
     BULLET: {
         image: "bullet.png",
@@ -22,6 +52,12 @@ const ENEMY_TYPES = {
         height: 24,
         baseSpeed: 50
     },
+    MINE:{
+        image:"mine.png",
+        width:32,
+        height:32,
+        baseSpeed:30
+    }
 };
 const enemyImages = {};
 
@@ -51,7 +87,7 @@ function loadEnemyTypeImages() {
 }
 const backgroundMusic = new Audio('soundtrack.mp3');
 backgroundMusic.loop = true;
-backgroundMusic.volume = 0.5; // Set volume (0.0 to 1.0)
+backgroundMusic.volume = 0.1; // Set volume (0.0 to 1.0)
 
 
 const idleImage = new Image();
@@ -144,15 +180,25 @@ class GameSettings {
             enemyHeight,
             enemyImage,
             this.getRandomWord(),
-            finalSpeed
+            finalSpeed,randomTypeKey
         );
         enemies.push(enemy);
         objects.push(enemy);
     }
 
-    wait(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
+     wait(ms) {
+    return new Promise(resolve => {
+        const checkPause = () => {
+            if (!gamePaused) {
+                setTimeout(resolve, ms);
+            } else {
+                requestAnimationFrame(checkPause);
+            }
+        };
+        checkPause();
+    });
+}
+
 
     async initEnemySpawner() {
         for (let i = 0; i < this.enemiesPerWave; i++) {
@@ -183,26 +229,28 @@ class FocusIndicator {
     constructor(enemy) {
         this.enemy = enemy;
         this.sprite = focusCircleImage;
-        this.scale = 5;       
-        this.targetScale = 0.1; 
-        this.shrinkSpeed = 16;  
+        this.scale = 5;
+        this.targetScale = 0.1;
+        this.shrinkSpeed = 15;
+        this.rotation = 0;
+        this.rotationSpeed = 10;
     }
 
     update(dt) {
-        console.log(dt);
+        // Rotate continuously
+        this.rotation += this.rotationSpeed * dt;
+
         // Smooth shrink animation
         if (this.scale > this.targetScale) {
-            
             this.scale -= this.shrinkSpeed * dt;
             if (this.scale < this.targetScale) {
                 this.scale = this.targetScale;
             }
-        }else
-        {
+        } else {
+            // Remove when animation finishes
             const index = objects.indexOf(this);
             if (index > -1) objects.splice(index, 1);
-
-        }  
+        }
     }
 
     draw(ctx) {
@@ -214,7 +262,10 @@ class FocusIndicator {
         const size = 150 * this.scale;
 
         ctx.save();
-        ctx.translate(cx, cy);
+        ctx.translate(cx, cy);     // move to center of enemy
+        ctx.rotate(this.rotation); // rotate around center
+        ctx.filter = "hue-rotate(50deg)";
+
         ctx.drawImage(
             this.sprite,
             -size / 2,
@@ -222,6 +273,7 @@ class FocusIndicator {
             size,
             size
         );
+
         ctx.restore();
     }
 }
@@ -295,29 +347,21 @@ class PlasmaSplash {
 
 
 
-class AudioManager{
+class AudioManager {
     constructor() {
       
     }
- 
+
+    static playAudio(audio){
+        if(!audio.paused){
+            audio.currentTime=0;
+        }
+        audio.play()
+    }
     static playBackgroundMusic() {
         backgroundMusic.play();
     }
 }
-const soundBtn =document.getElementById('sound-btn');
-
-soundBtn.addEventListener('click', () => {
-    if (backgroundMusic.paused) {
-        backgroundMusic.play();
-        soundBtn.classList.remove('sound-off');
-        soundBtn.classList.add('sound-on');
-    } else {
-        backgroundMusic.pause();
-        soundBtn.classList.remove('sound-on');
-        soundBtn.classList.add('sound-off');
-    }
-});
-
 
 
 
@@ -329,7 +373,7 @@ let plasmaSprite = new Image();
 plasmaSprite.src = "plasma.png"; // your sprite path
 
 let explosionSprite = new Image();
-explosionSprite.src = "exp2_0.png"; // your explosion sprite sheet path
+explosionSprite.src = "explosion.png"; // your explosion sprite sheet path
 
 
 let enemies = [];
@@ -342,12 +386,12 @@ class Explosion {
         this.y = y;
         this.spriteSheet = spriteSheet;
 
-        this.frameWidth = 64;
-        this.frameHeight = 64;
+        this.frameWidth = 256;
+        this.frameHeight = 256;
 
-        this.columns = 4;      // 4 frames per row
-        this.rows = 4;         // 4 rows
-        this.frameCount = 16;  // total frames
+        this.columns =8;      // 4 frames per row
+        this.rows = 8;         // 4 rows
+        this.frameCount = 64;  // total frames
 
         this.frameSpeed = frameSpeed;
         this.currentFrame = 0;
@@ -376,7 +420,7 @@ class Explosion {
 
         ctx.save();
         ctx.translate(this.x, this.y);
-        ctx.scale(1.5,1.5)
+        ctx.scale(0.65,0.65)
 
         ctx.drawImage(
             this.spriteSheet,
@@ -411,6 +455,7 @@ class Plasma {
 
 
     collideWithEnemy() {
+        
         const dx = this.x - (this.enemy.x + this.enemy.width / 2);
         const dy = this.y - (this.enemy.y + this.enemy.height / 2);
         const distance = Math.hypot(dx, dy);
@@ -423,9 +468,7 @@ class Plasma {
     }
     update(dt) {
       if(this.collideWithEnemy() ){
-        
-
-
+        AudioManager.playAudio(hitAudio)
           if(this.isLast){
             this.enemy.initiateExplosion();
             const index = objects.indexOf(this.enemy);
@@ -469,7 +512,7 @@ class Plasma {
 
 
 class EnemyShip {
-    constructor(x, y, width, height ,spriteSheet ,word="alien",speed=30 ) {
+    constructor(x, y, width, height ,spriteSheet ,word="alien",speed=30 ,type ) {
         this.x = x;
         this.y = y;
         this.width = width;
@@ -487,6 +530,15 @@ class EnemyShip {
         this.knockbackVelocity = 0;  // current knockback speed
         this.knockbackDuration = 0;  // remaining time of knockback
         this.knockbackAngle = 0; 
+        this.type=type;
+        if (type === "DESTROYER") {
+            this.spawnInterval = 10; // seconds between bullets
+            this.spawnAccumulator = 0;
+        }
+         if (type === "MINE") {
+            this.rotation = 0;           // current rotation in radians
+            this.rotationSpeed = 2;      // radians per second
+        }
 
         const playerCx = playerShip.x + playerShip.frameWidth / 2;
         const playerCy = playerShip.y + playerShip.frameHeight / 2;
@@ -503,8 +555,52 @@ class EnemyShip {
     this.knockbackVelocity = force;             // pixels per second
     this.knockbackDuration = duration;          // seconds
 }
+    spawnBullet() {
+        const enemyType = ENEMY_TYPES.BULLET;
+        const img = enemyImages.BULLET;
+        const bulletX = this.x + this.width / 2 - enemyType.width / 2;
+        const bulletY = this.y + this.height;
+
+        if(!(playerShip && bulletY < playerShip.y-10)){
+            return;
+        }
+
+        const bullet = new EnemyShip(
+            bulletX,
+            bulletY,
+            enemyType.width,
+            enemyType.height,
+            img,
+            gameSettings.getRandomWord(),
+            enemyType.baseSpeed,
+            "BULLET"
+        );
+
+        enemies.push(bullet);
+        objects.push(bullet);
+    }
   update(dt) {
+    if (this.y > canvas.height + this.height) {
+        const index = objects.indexOf(this);
+        if (index > -1) objects.splice(index, 1);
+        
+    }
+    if (this.type === "MINE") {
+            this.rotation += this.rotationSpeed * dt;
+        }
+    if (this.type === "DESTROYER") {
+            this.spawnAccumulator += dt;
+            if (this.spawnAccumulator >= this.spawnInterval) {
+                this.spawnBullet();
+                this.spawnAccumulator = 0;
+            }
+        }
     if(this.collidedWithPlayer(playerShip)){
+        playerShip.Destroy()
+        this.initiateExplosion();
+        let index =objects.indexOf(playerShip)
+        if(index> -1) objects.splice(index, 1);
+        endGame()
     }
     if (this.knockbackDuration > 0) {
         const dx = Math.cos(this.knockbackAngle) * this.knockbackVelocity * dt;
@@ -521,25 +617,15 @@ class EnemyShip {
     }
 
 
-    const dx = playerShip.x  - this.x;
-    const dy = playerShip.y - this.y;
-
-    const length = Math.hypot(dx, dy);
-
-    // normalize
-    const nx = dx / length;
-    const ny = dy / length;
-
-    // move toward player
-    this.x += nx * this.speed * dt;
-    this.y += ny * this.speed * dt;
+    this.x += Math.cos(this.angle) * this.speed * dt;
+    this.y += Math.sin(this.angle) * this.speed * dt;
   }
   initiateExplosion() {
     const explosion = new Explosion(
         this.x + this.width / 2,
         this.y + this.height / 2,
         explosionSprite,
-        18
+        75
     );
     objects.push(explosion);
   }
@@ -550,8 +636,8 @@ class EnemyShip {
 
 
   collidedWithPlayer() {
-
-
+    if(playerShip.isDestroyed)
+        return false
     const circle1 = {
         x: this.x + this.width / 2,
         y: this.y + this.height / 2,
@@ -588,7 +674,11 @@ class EnemyShip {
   ctx.translate(cx, cy);
 
   // Rotate toward player (if you want rotation)
-  ctx.rotate(this.angle - Math.PI / 2);
+  if (this.type === "MINE") {
+            ctx.rotate(this.rotation);
+        } else {
+            ctx.rotate(this.angle - Math.PI / 2);
+        }
 
   // Draw the sprite centered
   ctx.drawImage(
@@ -601,14 +691,14 @@ class EnemyShip {
   ctx.rotate(-(this.angle - Math.PI / 2));
   // Draw a circle instead of a rectangle
   ctx.restore();
-  this.drawTextWithBackground(ctx, this.word.substring(this.expectedCharIndex), this.x - 20, this.y +this.height + 5, "white", "black", 7);
+  this.drawTextWithBackground(ctx, this.word.substring(this.expectedCharIndex), this.x - 20, this.y +this.height + 5, "white", "#00000059", 7);
 
 }
   drawTextWithBackground(ctx, text, x, y, textColor, bgColor, padding = 7) {
     if (!text || text.length === 0) return;
 
     const canvas = ctx.canvas;
-    ctx.font = "16px Helvetica";    
+    ctx.font = "15px 'Roboto Mono'";  
     const metrics = ctx.measureText(text);
     const textWidth = metrics.width;
     const textHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
@@ -677,9 +767,15 @@ class PlayerShip {
     this.rotation = 0;
     this.accumulator = 0;     
     this.state="idle";   
+    this.isDestroyed=false;
     
   }
+  Destroy(){
+    this.isDestroyed=true;
+  }
+
   firePlasma(enemy ,isLast=false) {
+
     const playerCx = this.x + this.frameWidth / 2;
     const playerCy = this.y + this.frameHeight / 2;
     const enemyCx = enemy.x + enemy.width / 2;
@@ -689,6 +785,7 @@ class PlayerShip {
     const angle = Math.atan2(dy, dx) ;
 
     const plasma = new Plasma(playerCx, playerCy, angle,enemy ,1500 ,isLast ,plasmaSprite);
+    AudioManager.playAudio(plasmeFire)
     objects.push(plasma);
   }
 
@@ -781,70 +878,101 @@ class PlayerShip {
 
 
 let scrollSpeed = 0.08; // How many pixels to move per frame
-let gridscrollSpeed= 0.5
+let gridscrollSpeed= 0.6
 let backgroundY = 0;
 let gridbackgroundY=0;
 
 
 
 window.addEventListener('keyup', (e) => {
+    if (gamePaused) return;
     const key = e.key.toLocaleLowerCase();
     if (focusedShip) {
-        const expectedChar = focusedShip.word.charAt(focusedShip.expectedCharIndex);
+    const expectedChar = focusedShip.word.charAt(focusedShip.expectedCharIndex);
+
+    if (typingStartTime === null) {
+        // Start the global timer when typing first letter of a word
+        typingStartTime = performance.now();
+        pausedAccumulated = 0;
+    }
+
+    if (key === expectedChar) {
+        correctTyped++;
+        totalTyped++;
+        score += 10;
+        focusedShip.expectedCharIndex++;
+
+        if (focusedShip.expectedCharIndex >= focusedShip.word.length) {
+            // Word fully typed, update total typing time
+            const wordEndTime = performance.now();
+            totalTypingTime += (wordEndTime - typingStartTime - pausedAccumulated);
+            typingStartTime = null; // reset for next word
+
+            // Update global WPM
+            const totalMinutes = totalTypingTime / 1000 / 60;
+            wpm = (correctTyped / 5) / totalMinutes;
+
+            focusedShip.isDestroyed = true;
+            playerShip.firePlasma(focusedShip, true);
+            focusedShip = null;
+        } else {
+            playerShip.firePlasma(focusedShip);
+        }
+    } else {
+        totalTyped++;
+        AudioManager.playAudio(clickSound);
+        if (playerShip.state !== "shooting") playerShip.state = "shooting";
+        else playerShip.resetAnimation();
+    }
+} else {
+    // No focused ship, start typing first correct letter for new word
+    for (const enemy of enemies) {
+        const expectedChar = enemy.word.charAt(enemy.expectedCharIndex);
         if (key === expectedChar) {
-            focusedShip.expectedCharIndex++;
-            if (focusedShip.expectedCharIndex >= focusedShip.word.length) {
-                focusedShip.isDestroyed=true;
-                playerShip.firePlasma(focusedShip, true);
-                focusedShip = null;
-            }else{
-                playerShip.firePlasma(focusedShip);
-            }
-        }else{
-            if(playerShip.state!=="shooting")
-                playerShip.state="shooting"
-            else
-                playerShip.resetAnimation();
+            if (typingStartTime === null) typingStartTime = performance.now();
+
+            correctTyped++;
+            totalTyped++;
+            focusedShip = enemy;
+
+            // Rotate player and focus enemy
+            const enemyCx = enemy.x + enemy.width / 2;
+            const enemyCy = enemy.y + enemy.height / 2;
+            const playerCx = playerShip.x + playerShip.frameWidth / 2;
+            const playerCy = playerShip.y + playerShip.frameHeight / 2;
+            const dx = enemyCx - playerCx;
+            const dy = enemyCy - playerCy;
+            playerShip.rotation = Math.atan2(dy, dx) + Math.PI / 2;
+            playerShip.firePlasma(enemy);
+            enemy.isFocused = true;
+            enemy.expectedCharIndex++;
+            AudioManager.playAudio(targetFocusAudio);
+            objects.push(new FocusIndicator(enemy));
+            return;
         }
     }
-    else{
-        for (const enemy of enemies) {
-            const expectedChar = enemy.word.charAt(enemy.expectedCharIndex);
-            if (key === expectedChar) {
-                focusedShip = enemy;
-                //Calculate rotate angle of player towards enemy
-                const enemyCx = enemy.x + enemy.width / 2;
-                const enemyCy = enemy.y + enemy.height / 2;
 
-                const playerCx = playerShip.x + playerShip.frameWidth / 2;
-                const playerCy = playerShip.y + playerShip.frameHeight / 2;
-                const dx = enemyCx - playerCx;
-                const dy = enemyCy - playerCy;
-                playerShip.rotation = Math.atan2(dy, dx) + Math.PI / 2;
-                playerShip.firePlasma(enemy);
-                enemy.isFocused = true;
-                enemy.expectedCharIndex++;
-                objects.push(new FocusIndicator(enemy));
-                return;
-            }
-        }
-        if(playerShip.state!=="shooting"){
-            playerShip.state="shooting"
-        }else{
-            playerShip.resetAnimation();
-        }
-
-    }
+    // Wrong key pressed
+    AudioManager.playAudio(clickSound);
+    totalTyped++;
+    if (playerShip.state !== "shooting") playerShip.state = "shooting";
+    else playerShip.resetAnimation();
+}
 
 
 });
 
 
+let gamePaused=false;
+
 function gameLoop(timestamp) {
+
   const dt = (timestamp - last) / 1000;
   last = timestamp;
 
-  for (const obj of objects) obj.update(dt);
+
+    if(!gamePaused)
+        for (const obj of objects) obj.update(dt);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -870,6 +998,7 @@ if (gridbackgroundY >= gridBg.height) {
 if (gridBg.complete) {
     ctx.save();
     ctx.globalAlpha = 0.55;
+    
 
     // create repeat pattern
     const pattern = ctx.createPattern(gridBg, "repeat");
@@ -899,12 +1028,40 @@ if (gridBg.complete) {
   ctx.globalAlpha=1;
   
 
-  for (const obj of objects) obj.draw(ctx);
+    for (const obj of objects) obj.draw(ctx);
 
-  requestAnimationFrame(gameLoop);
+
+    requestAnimationFrame(gameLoop);
+  
+}
+function pauseGame() {
+    gamePaused = true;
+    if (typingStartTime !== null) pausedAt = performance.now();
+}
+function resumeGame() {
+    gamePaused = false;
+    if (typingStartTime !== null && pausedAt !== null) {
+        pausedAccumulated += performance.now() - pausedAt;
+        pausedAt = null;
+    }
 }
 
+function endGame() {
+    // If a word is partially typed, add its elapsed time
+    if (typingStartTime !== null) {
+        const now = performance.now();
+        totalTypingTime += now - typingStartTime - pausedAccumulated;
+    }
 
+    const totalMinutes = totalTypingTime / 1000 / 60;
+    const wpm =totalMinutes>0? (correctTyped / 5) / totalMinutes:0;
+
+    console.log("=== GAME OVER ===");
+    console.log("Correct Typed:", correctTyped);
+    console.log("Total Typed:", totalTyped);
+    console.log("Total Typing Time (ms):", totalTypingTime.toFixed(0));
+    console.log("WPM:", wpm);
+}
 
 
 const  gameSettings = new GameSettings();

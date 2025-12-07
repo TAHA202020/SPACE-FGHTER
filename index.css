@@ -5,7 +5,6 @@
 }
 
 body{
-    position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -14,29 +13,16 @@ body{
     background-repeat: repeat;
 }
 
-.sound{
-    position: absolute;
-    border: none;
-    outline: none;
-    top: 20px;
-    right: 20px;
-    
-    background-size: cover;
-    height: 30px;
-    width: 30px;
-}
-.sound-off{
-    background-image: url("./soundoff.png");
-}
-.sound-on{
-    background-image: url("./soundon.png");
-}
-.container{
-    position: relative;
-    
-}
 canvas {
     border: none !important;
     outline: none !important;
-    box-shadow: 0 0 30px #000;
 }
+
+.container {
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 0 30px #000;
+    height: 720px;
+}
+
+
