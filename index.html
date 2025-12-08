@@ -10,8 +10,48 @@
 </head>
 <body>
     <div class="container">
+        <div id="game-over" class="game-over-overlay display-none">
+            <div id="game-over-box" class="game-over-box">
+            <h1 class="game-over-title">Game Over</h1>
+            <div class="flex">
+                <h3 id="go-correct" class="go-stat">Correct: 0</h3>
+                <h3 id="go-total" class="go-stat">Total Typed: 0</h3>
+                <h3 id="go-wpm" class="go-stat">WPM: 0</h3>
+            </div>
+            <button id="restart-btn" class="go-restart-btn">Restart</button>
+            </div>
+        </div>
+
+
+
+
+
+
+
+        <img id="pause-btn" src="pause.png" class="pause-btn" />
+
+<!-- PAUSE MENU -->
+        <div id="pause-menu" class="pause-menu display-none">
+            <div id="pause-box" class="pause-box">
+                <h1 class="pause-title">Paused</h1>
+
+                <label class="vol-label">Music Volume</label>
+                <input type="range" id="volume-slider" min="0" max="1" step="0.01">
+
+                <div class="pause-buttons">
+                    <button id="continue-btn" class="pause-btn-ui">Continue</button>
+                    <button id="restart-btn-pause" class="pause-btn-ui">Restart</button>
+                </div>
+            </div>
+        </div>
         <canvas id="myCanvas" >
         </canvas>
+        <div id="wave-stats" class="display-none">
+            <div id="stats" class="stats-container">
+                <h1 id="wave-num" class="title">Wave 5</h1>
+                <h3 id="score" class="score">Score 00045</h3>
+            </div>
+        </div>
     </div>
 </body>
 </html>

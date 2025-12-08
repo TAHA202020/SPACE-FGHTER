@@ -16,27 +16,83 @@ let last = 0;
 const objects = [];
 const ctx=canvas.getContext("2d");
 let playerShip;
+const pauseMenu = document.getElementById("pause-menu");
+const pauseBtn = document.getElementById("pause-btn");
+const continueBtn = document.getElementById("continue-btn");
+const restartBtn = document.getElementById("restart-btn-pause");
+const volumeSlider = document.getElementById("volume-slider");
 
+// Initialize slider with stored global volume
+volumeSlider.value = MasterVolume;
+
+function showPauseMenu() {
+    document.getElementById("volume-slider").value=MasterVolume;
+    pauseMenu.classList.remove("display-none");
+    pauseMenu.classList.add("display-flex");
+}
+
+function hidePauseMenu() {
+    pauseMenu.classList.add("display-none");
+}
+
+pauseBtn.onclick = () => {
+    pauseGame();
+    showPauseMenu();
+};
+
+continueBtn.onclick = () => {
+    hidePauseMenu();
+    resumeGame();
+};
+
+restartBtn.onclick = () => {
+    location.reload();
+};
+
+volumeSlider.oninput = () => {
+    MasterVolume = Number(volumeSlider.value);
+    backgroundMusic.volume = MasterVolume;
+};
+document.getElementById("restart-btn").onclick = () => {
+    location.reload();
+};
 
 
 const hitAudio=new Audio("hit.ogg")
-hitAudio.volume=MasterVolume
 
 const plasmeFire=new Audio("plasma.ogg")
-plasmeFire.volume=MasterVolume
 
 
 const clickSound=new Audio("click.mp3")
 
-clickSound.volume=MasterVolume
-
 const targetFocusAudio=new Audio("target.ogg")
 
-targetFocusAudio.volume=MasterVolume
 
 
+function showWaveStats(waveNumber, score) {
+    const statsOverlay = document.getElementById("wave-stats");
+    const statsContainer = document.getElementById("stats");
+    const waveNum = document.getElementById("wave-num");
+    const scoreEl = document.getElementById("score");
+    pauseBtn.classList.add("display-none")
 
+    // Update values
+    waveNum.textContent = `Wave ${waveNumber}`;
+    scoreEl.textContent = `Score ${String(score).padStart(5, '0')}`;
 
+    // Show the overlay
+    statsOverlay.classList.remove("display-none");
+    statsOverlay.classList.add("display-flex");
+
+    // Reset animation (in case it's called again)
+    statsContainer.classList.remove("slide-in");
+    void statsContainer.offsetWidth; // Force reflow to restart CSS animation
+    statsContainer.classList.add("slide-in");
+}
+function hideWaveStats() {
+    pauseBtn.classList.remove("display-none")
+    document.getElementById("wave-stats").classList.add("display-none");
+}
 let focusCircleImage = new Image();
 
 const ENEMY_TYPES = {
@@ -87,7 +143,7 @@ function loadEnemyTypeImages() {
 }
 const backgroundMusic = new Audio('soundtrack.mp3');
 backgroundMusic.loop = true;
-backgroundMusic.volume = 0.1; // Set volume (0.0 to 1.0)
+.1; // Set volume (0.0 to 1.0)
 
 
 const idleImage = new Image();
@@ -142,6 +198,7 @@ class GameSettings {
         this.maxSpawnDelay = 1200;
 
         this.enemiesKilled = 0;
+        this.actualWaveenemiesCount=this.enemiesPerWave;
 
         // pool of random words
         this.wordPool = ["alien", "meteor", "attack", "orbit", "galaxy", "laser", "nova", "comet"];
@@ -152,6 +209,7 @@ class GameSettings {
         this.enemiesPerWave += this.enemiesPerWaveIncrement;
         this.baseEnemySpeed += this.enemySpeedIncrement;
         this.enemiesKilled = 0;
+        this.actualWaveenemiesCount=this.enemiesPerWave;
     }
 
     getRandomWord() {
@@ -186,16 +244,27 @@ class GameSettings {
         objects.push(enemy);
     }
 
-     wait(ms) {
+    wait(ms) {
     return new Promise(resolve => {
-        const checkPause = () => {
+        let remaining = ms;
+        let lastTime = performance.now();
+
+        const tick = (now) => {
             if (!gamePaused) {
-                setTimeout(resolve, ms);
+                const delta = now - lastTime;
+                remaining -= delta;
+            }
+
+            lastTime = now;
+
+            if (remaining <= 0) {
+                resolve();
             } else {
-                requestAnimationFrame(checkPause);
+                requestAnimationFrame(tick);
             }
         };
-        checkPause();
+
+        requestAnimationFrame(tick);
     });
 }
 
@@ -203,8 +272,6 @@ class GameSettings {
     async initEnemySpawner() {
         for (let i = 0; i < this.enemiesPerWave; i++) {
             this.initEnemy();
-
-            // RANDOM SPAWN DELAY each enemy
             const delay = this.getRandomSpawnDelay();
             await this.wait(500);
         }
@@ -213,11 +280,12 @@ class GameSettings {
     async KillEnemy() {
         this.enemiesKilled++;
 
-        if (this.enemiesKilled >= this.enemiesPerWave) {
-            console.log("Wave Completed!");
-
-            await this.wait(1500);
-
+        if (this.enemiesKilled >= this.actualWaveenemiesCount) {
+            showWaveStats(this.waveCount, score);
+            //show wave stats
+            await this.wait(5000);
+            hideWaveStats()
+            await this.wait(1000)
             console.log("Starting next wave!");
             this.nextWave();
 
@@ -353,6 +421,7 @@ class AudioManager {
     }
 
     static playAudio(audio){
+        audio.volume=MasterVolume;
         if(!audio.paused){
             audio.currentTime=0;
         }
@@ -575,6 +644,7 @@ class EnemyShip {
             enemyType.baseSpeed,
             "BULLET"
         );
+        gameSettings.actualWaveenemiesCount++;
 
         enemies.push(bullet);
         objects.push(bullet);
@@ -926,14 +996,15 @@ window.addEventListener('keyup', (e) => {
     }
 } else {
     // No focused ship, start typing first correct letter for new word
-    for (const enemy of enemies) {
+    for (let i = 0; i < enemies.length; i++) {
+        const enemy = enemies[i];
         const expectedChar = enemy.word.charAt(enemy.expectedCharIndex);
         if (key === expectedChar) {
             if (typingStartTime === null) typingStartTime = performance.now();
 
             correctTyped++;
             totalTyped++;
-            focusedShip = enemy;
+            focusedShip = enemies.splice(i, 1)[0]; 
 
             // Rotate player and focus enemy
             const enemyCx = enemy.x + enemy.width / 2;
@@ -1045,22 +1116,25 @@ function resumeGame() {
         pausedAt = null;
     }
 }
-
 function endGame() {
-    // If a word is partially typed, add its elapsed time
+    pauseBtn.classList.add("display-none")
     if (typingStartTime !== null) {
         const now = performance.now();
         totalTypingTime += now - typingStartTime - pausedAccumulated;
     }
 
     const totalMinutes = totalTypingTime / 1000 / 60;
-    const wpm =totalMinutes>0? (correctTyped / 5) / totalMinutes:0;
+    const wpm = totalMinutes > 0 ? (correctTyped / 5) / totalMinutes : 0;
 
-    console.log("=== GAME OVER ===");
-    console.log("Correct Typed:", correctTyped);
-    console.log("Total Typed:", totalTyped);
-    console.log("Total Typing Time (ms):", totalTypingTime.toFixed(0));
-    console.log("WPM:", wpm);
+    // SHOW GAME OVER SCREEN
+    document.getElementById("game-over").classList.remove("display-none");
+    document.getElementById("game-over").classList.add("display-flex");
+    // UPDATE UI
+    document.getElementById("go-correct").textContent = `Score: ${score}`;
+    document.getElementById("go-total").textContent = `Accuracy : ${
+  totalTyped === 0 ? "0.00mete" : ((correctTyped / totalTyped) * 100).toFixed(2)
+}%`;
+    document.getElementById("go-wpm").textContent = `WPM: ${wpm.toFixed(1)}`;
 }
 
 
