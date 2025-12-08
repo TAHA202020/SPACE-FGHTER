@@ -203,6 +203,12 @@ class GameSettings {
         // pool of random words
         this.wordPool = ["alien", "meteor", "attack", "orbit", "galaxy", "laser", "nova", "comet"];
     }
+    async loadWordPool() {
+    const res = await fetch("words.json");
+    const data = await res.json();
+    this.easyWords = data.easy;
+    this.hardWords = data.hard;
+    }
 
     nextWave() {
         this.waveCount++;
@@ -215,6 +221,17 @@ class GameSettings {
     getRandomWord() {
         return this.wordPool[Math.floor(Math.random() * this.wordPool.length)];
     }
+
+    getRandomWordForType(enemyType) {
+    if (enemyType === "DESTROYER" && this.hardWords.length) {
+        return this.hardWords[Math.floor(Math.random() * this.hardWords.length)];
+    } else if (this.easyWords.length) {
+        return this.easyWords[Math.floor(Math.random() * this.easyWords.length)];
+    } else {
+        // fallback to default pool
+        return this.wordPool[Math.floor(Math.random() * this.wordPool.length)];
+    }
+}
 
     getRandomSpawnDelay() {
         return Math.random() * (this.maxSpawnDelay - this.minSpawnDelay) + this.minSpawnDelay;
@@ -230,14 +247,14 @@ class GameSettings {
         const randomX = Math.random() * (canvas.width - enemyWidth);
         const randomY = -Math.random() * 200 - enemyHeight;
         const finalSpeed = ENEMY_TYPES[randomTypeKey].baseSpeed;
-
+        const word = this.getRandomWordForType(randomTypeKey);
         const enemy = new EnemyShip(
             randomX,
             randomY,
             enemyWidth,
             enemyHeight,
             enemyImage,
-            this.getRandomWord(),
+            word,
             finalSpeed,randomTypeKey
         );
         enemies.push(enemy);
@@ -640,7 +657,7 @@ class EnemyShip {
             enemyType.width,
             enemyType.height,
             img,
-            gameSettings.getRandomWord(),
+            gameSettings.getRandomWordForType("BULLET"),
             enemyType.baseSpeed,
             "BULLET"
         );
@@ -653,6 +670,8 @@ class EnemyShip {
     if (this.y > canvas.height + this.height) {
         const index = objects.indexOf(this);
         if (index > -1) objects.splice(index, 1);
+        const enemyIndex = enemies.indexOf(this);
+        if (enemyIndex > -1) enemies.splice(enemyIndex, 1);
         
     }
     if (this.type === "MINE") {
@@ -955,7 +974,7 @@ let gridbackgroundY=0;
 
 
 window.addEventListener('keyup', (e) => {
-    if (gamePaused) return;
+    if (gamePaused || playerShip.isDestroyed) return;
     const key = e.key.toLocaleLowerCase();
     if (focusedShip) {
     const expectedChar = focusedShip.word.charAt(focusedShip.expectedCharIndex);
@@ -1141,9 +1160,11 @@ function endGame() {
 const  gameSettings = new GameSettings();
 
 async function startGame() {
+    // await gameSettings.loadWordPool()
   await loadPlayerImage()
   await loadEnemyTypeImages();
   await loadFocusCircleImage();
+  await gameSettings.loadWordPool();
   requestAnimationFrame(gameLoop);
   gameSettings.initEnemySpawner();
 }
