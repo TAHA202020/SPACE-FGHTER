@@ -1,12 +1,12 @@
 let totalTyped = 0;
 let correctTyped = 0;
 let score = 0;
-let pausedAccumulated = 0;       // total paused time during current word
+let pausedAccumulated = 0;   
 let pausedAt = null; 
 
-let typingStartTime = null;  // time when first word typing started
-let totalTypingTime = 0;     // cumulative typing time (in milliseconds)
-let wpm = 0;                 // global WPM
+let typingStartTime = null;  
+let totalTypingTime = 0;     
+let wpm = 0;    
 
 let MasterVolume =0.5
 const canvas = document.getElementById('myCanvas');
@@ -75,18 +75,12 @@ function showWaveStats(waveNumber, score) {
     const waveNum = document.getElementById("wave-num");
     const scoreEl = document.getElementById("score");
     pauseBtn.classList.add("display-none")
-
-    // Update values
-    waveNum.textContent = `Wave ${waveNumber}`;
+    waveNum.textContent = `Wave ${waveNumber} complete`;
     scoreEl.textContent = `Score ${String(score).padStart(5, '0')}`;
-
-    // Show the overlay
     statsOverlay.classList.remove("display-none");
     statsOverlay.classList.add("display-flex");
-
-    // Reset animation (in case it's called again)
     statsContainer.classList.remove("slide-in");
-    void statsContainer.offsetWidth; // Force reflow to restart CSS animation
+    void statsContainer.offsetWidth;
     statsContainer.classList.add("slide-in");
 }
 function hideWaveStats() {
@@ -94,6 +88,7 @@ function hideWaveStats() {
     document.getElementById("wave-stats").classList.add("display-none");
 }
 let focusCircleImage = new Image();
+
 
 const ENEMY_TYPES = {
     DESTROYER: {
@@ -115,6 +110,8 @@ const ENEMY_TYPES = {
         baseSpeed:30
     }
 };
+
+
 const enemyImages = {};
 
 
@@ -143,26 +140,16 @@ function loadEnemyTypeImages() {
 }
 const backgroundMusic = new Audio('soundtrack.mp3');
 backgroundMusic.loop = true;
-.1; // Set volume (0.0 to 1.0)
 
 
 const idleImage = new Image();
-idleImage.src = "ship.png"; // your sprite sheet path
+idleImage.src = "ship.png"; 
 const enemyImage = new Image();
 enemyImage.src = "destroyer.png";
-
 const bg = new Image();
-
-// IMPORTANT: Use a tileable image!
 bg.src = 'background.jpg';
-
-
 const aboveBg=new Image();
-
 aboveBg.src="bg.png";
-
-
-
 const gridBg=new Image();
 gridBg.src="grid.png"
 
@@ -189,19 +176,16 @@ class GameSettings {
         this.waveCount = 1;
 
         this.enemiesPerWave = 5;
-        this.enemiesPerWaveIncrement = 2;
-
-        this.baseEnemySpeed = 50;
-        this.enemySpeedIncrement = 20;
 
         this.minSpawnDelay = 300;
         this.maxSpawnDelay = 1200;
+        this.DestroyerFireRate=10;
+        this.enemySpeedMultiplier=1;
+        this.destroyerSpawnChance = 0.2; 
+        this.maxDestroyerChance = 0.50;
 
         this.enemiesKilled = 0;
-        this.actualWaveenemiesCount=this.enemiesPerWave;
-
-        // pool of random words
-        this.wordPool = ["alien", "meteor", "attack", "orbit", "galaxy", "laser", "nova", "comet"];
+        this.actualWaveEnemiesCount=this.enemiesPerWave;
     }
     async loadWordPool() {
     const res = await fetch("words.json");
@@ -212,10 +196,14 @@ class GameSettings {
 
     nextWave() {
         this.waveCount++;
-        this.enemiesPerWave += this.enemiesPerWaveIncrement;
-        this.baseEnemySpeed += this.enemySpeedIncrement;
+        if (this.waveCount % 5 === 0) {
+            this.enemiesPerWave = Math.min(this.enemiesPerWave + 1,10);
+            this.DestroyerFireRate = Math.max(this.DestroyerFireRate - 1, 5);
+            this.destroyerSpawnChance = Math.min(this.destroyerSpawnChance + 0.1, this.maxDestroyerChance);
+        }
+        this.enemySpeedMultiplier = Math.min(this.enemySpeedMultiplier+0.05, 1.7);
         this.enemiesKilled = 0;
-        this.actualWaveenemiesCount=this.enemiesPerWave;
+        this.actualWaveEnemiesCount=this.enemiesPerWave;
     }
 
     getRandomWord() {
@@ -237,29 +225,42 @@ class GameSettings {
         return Math.random() * (this.maxSpawnDelay - this.minSpawnDelay) + this.minSpawnDelay;
     }
 
-    initEnemy() {
-        const enemyTypeKeys = Object.keys(ENEMY_TYPES);
-        const randomTypeKey = enemyTypeKeys[Math.floor(Math.random() * enemyTypeKeys.length)];
-        const enemyType = ENEMY_TYPES[randomTypeKey];
-        const enemyImage = enemyImages[randomTypeKey];
-        const enemyWidth = enemyType.width;
-        const enemyHeight = enemyType.height;
-        const randomX = Math.random() * (canvas.width - enemyWidth);
-        const randomY = -Math.random() * 200 - enemyHeight;
-        const finalSpeed = ENEMY_TYPES[randomTypeKey].baseSpeed;
-        const word = this.getRandomWordForType(randomTypeKey);
-        const enemy = new EnemyShip(
-            randomX,
-            randomY,
-            enemyWidth,
-            enemyHeight,
-            enemyImage,
-            word,
-            finalSpeed,randomTypeKey
-        );
-        enemies.push(enemy);
-        objects.push(enemy);
+   initEnemy() {
+    // 30% DESTROYER, 70% MINE, 0% BULLET
+    let randomTypeKey;
+    const roll = Math.random();
+
+    if (roll < this.destroyerSpawnChance) {
+        randomTypeKey = "DESTROYER";
+    } else {
+        randomTypeKey = "MINE";
     }
+
+    const enemyType = ENEMY_TYPES[randomTypeKey];
+    const enemyImage = enemyImages[randomTypeKey];
+    const enemyWidth = enemyType.width;
+    const enemyHeight = enemyType.height;
+
+    const randomX = Math.random() * (canvas.width - enemyWidth);
+    const randomY = -Math.random() * 200 - enemyHeight;
+
+    const finalSpeed = enemyType.baseSpeed * this.enemySpeedMultiplier;
+    const word = this.getRandomWordForType(randomTypeKey);
+
+    const enemy = new EnemyShip(
+        randomX,
+        randomY,
+        enemyWidth,
+        enemyHeight,
+        enemyImage,
+        word,
+        finalSpeed,
+        randomTypeKey
+    );
+
+    enemies.push(enemy);
+    objects.push(enemy);
+}
 
     wait(ms) {
     return new Promise(resolve => {
@@ -290,14 +291,14 @@ class GameSettings {
         for (let i = 0; i < this.enemiesPerWave; i++) {
             this.initEnemy();
             const delay = this.getRandomSpawnDelay();
-            await this.wait(500);
+            await this.wait(delay);
         }
     }
 
     async KillEnemy() {
         this.enemiesKilled++;
 
-        if (this.enemiesKilled >= this.actualWaveenemiesCount) {
+        if (this.enemiesKilled >= this.actualWaveEnemiesCount) {
             showWaveStats(this.waveCount, score);
             //show wave stats
             await this.wait(5000);
@@ -618,7 +619,7 @@ class EnemyShip {
         this.knockbackAngle = 0; 
         this.type=type;
         if (type === "DESTROYER") {
-            this.spawnInterval = 10; // seconds between bullets
+            this.spawnInterval = gameSettings.DestroyerFireRate; // seconds between bullets
             this.spawnAccumulator = 0;
         }
          if (type === "MINE") {
@@ -661,7 +662,7 @@ class EnemyShip {
             enemyType.baseSpeed,
             "BULLET"
         );
-        gameSettings.actualWaveenemiesCount++;
+        gameSettings.actualWaveEnemiesCount++;
 
         enemies.push(bullet);
         objects.push(bullet);
@@ -1151,7 +1152,7 @@ function endGame() {
     // UPDATE UI
     document.getElementById("go-correct").textContent = `Score: ${score}`;
     document.getElementById("go-total").textContent = `Accuracy : ${
-  totalTyped === 0 ? "0.00mete" : ((correctTyped / totalTyped) * 100).toFixed(2)
+  totalTyped === 0 ? "0.00" : ((correctTyped / totalTyped) * 100).toFixed(2)
 }%`;
     document.getElementById("go-wpm").textContent = `WPM: ${wpm.toFixed(1)}`;
 }
@@ -1170,5 +1171,3 @@ async function startGame() {
 }
 
 startGame();
-
-

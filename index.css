@@ -27,7 +27,7 @@ canvas {
     height: 720px;
 }
 
-#wave-stats{ position: absolute; z-index: 999; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.489); top: 0; left: 0; overflow: hidden; align-items: center; justify-content: start; } .display-flex{ display: flex; } .display-none{ display: none; } .title{ font-family: "Science Gothic", sans-serif; color: yellow; border-bottom: 1px yellow solid; padding-bottom: 10px; font-weight: 200; } .stats-container{ width: 50%; } .score{ font-family: "Science Gothic", sans-serif; padding-top: 10px; color: white; font-weight: 200; } .slide-in { animation: slideIn 0.6s ease forwards; } @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(10%); } }
+#wave-stats{ position: absolute; z-index: 999; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.489); top: 0; left: 0; overflow: hidden; align-items: center; justify-content: start; } .display-flex{ display: flex; } .display-none{ display: none; } .title{ font-family: "Science Gothic", sans-serif; color: yellow; border-bottom: 1px yellow solid; padding-bottom: 10px; font-weight: 200; } .score{ font-family: "Science Gothic", sans-serif; padding-top: 10px; color: white; font-weight: 200; } .slide-in { animation: slideIn 0.6s ease forwards; } @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(10%); } }
 
 
 .pause-btn {
