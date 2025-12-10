@@ -11,7 +11,7 @@ body{
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background-image: url("./page.png");
+    background-image: url("./sprites/page.png");
     background-repeat: repeat;
 }
 

@@ -58,14 +58,16 @@ document.getElementById("restart-btn").onclick = () => {
 };
 
 
-const hitAudio=new Audio("hit.ogg")
+const hitAudio=new Audio("./sounds/hit.ogg")
 
-const plasmeFire=new Audio("plasma.ogg")
+const plasmeFire=new Audio("./sounds/plasma.ogg")
 
 
-const clickSound=new Audio("click.mp3")
+const clickSound=new Audio("./sounds/click.mp3")
 
-const targetFocusAudio=new Audio("target.ogg")
+const explosionSound=new Audio("./sounds/explosion.ogg")
+
+const targetFocusAudio=new Audio("./sounds/target.ogg")
 
 
 
@@ -92,19 +94,19 @@ let focusCircleImage = new Image();
 
 const ENEMY_TYPES = {
     DESTROYER: {
-        image: "destroyer.png",
+        image: "./sprites/destroyer.png",
         width: 43,
         height: 58,
         baseSpeed: 25,
     },
     BULLET: {
-        image: "bullet.png",
+        image: "./sprites/bullet.png",
         width: 20,
         height: 24,
         baseSpeed: 50
     },
     MINE:{
-        image:"mine.png",
+        image:"./sprites/mine.png",
         width:32,
         height:32,
         baseSpeed:30
@@ -118,7 +120,7 @@ const enemyImages = {};
 
 function loadFocusCircleImage() {
     return new Promise(resolve => {
-        focusCircleImage.src = 'emp.png';
+        focusCircleImage.src = './sprites/emp.png';
         focusCircleImage.onload = () => {
             resolve();
         };
@@ -138,20 +140,19 @@ function loadEnemyTypeImages() {
         })
     );
 }
-const backgroundMusic = new Audio('soundtrack.mp3');
+const backgroundMusic = new Audio('./sounds/soundtrack.mp3');
 backgroundMusic.loop = true;
 
-
 const idleImage = new Image();
-idleImage.src = "ship.png"; 
+idleImage.src = "./sprites/ship.png"; 
 const enemyImage = new Image();
-enemyImage.src = "destroyer.png";
+enemyImage.src = "./sprites/destroyer.png";
 const bg = new Image();
-bg.src = 'background.jpg';
+bg.src = './sprites/background.jpg';
 const aboveBg=new Image();
-aboveBg.src="bg.png";
+aboveBg.src="./sprites/bg.png";
 const gridBg=new Image();
-gridBg.src="grid.png"
+gridBg.src="./sprites/grid.png"
 
 
 
@@ -364,7 +365,7 @@ class FocusIndicator {
     }
 }
 let plasmaSplashSheet=new Image();
-plasmaSplashSheet.src="Effect95.png"
+plasmaSplashSheet.src="./sprites/Effect95.png"
 
 function spawnPlasmaSplash(x, y) {
     objects.push(new PlasmaSplash(x, y, plasmaSplashSheet, 100));
@@ -457,10 +458,10 @@ class AudioManager {
 
 
 let plasmaSprite = new Image();
-plasmaSprite.src = "plasma.png"; // your sprite path
+plasmaSprite.src = "./sprites/plasma.png"; // your sprite path
 
 let explosionSprite = new Image();
-explosionSprite.src = "explosion.png"; // your explosion sprite sheet path
+explosionSprite.src = "./sprites/explosion.png"; // your explosion sprite sheet path
 
 
 let enemies = [];
@@ -557,6 +558,7 @@ class Plasma {
       if(this.collideWithEnemy() ){
         AudioManager.playAudio(hitAudio)
           if(this.isLast){
+            AudioManager.playAudio(explosionSound);
             this.enemy.initiateExplosion();
             const index = objects.indexOf(this.enemy);
             if (index > -1) {
@@ -680,7 +682,7 @@ class EnemyShip {
         }
     if (this.type === "DESTROYER") {
             this.spawnAccumulator += dt;
-            if (this.spawnAccumulator >= this.spawnInterval) {
+            if (this.spawnAccumulator >= this.spawnInterval && !playerShip?.isDestroyed) {
                 this.spawnBullet();
                 this.spawnAccumulator = 0;
             }
@@ -861,6 +863,7 @@ class PlayerShip {
     
   }
   Destroy(){
+    AudioManager.playAudio(explosionSound);
     this.isDestroyed=true;
   }
 
