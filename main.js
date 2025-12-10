@@ -22,7 +22,6 @@ const continueBtn = document.getElementById("continue-btn");
 const restartBtn = document.getElementById("restart-btn-pause");
 const volumeSlider = document.getElementById("volume-slider");
 
-// Initialize slider with stored global volume
 volumeSlider.value = MasterVolume;
 
 function showPauseMenu() {
@@ -176,7 +175,7 @@ class GameSettings {
     constructor() {
         this.waveCount = 1;
 
-        this.enemiesPerWave = 5;
+        this.enemiesPerWave = 4;
 
         this.minSpawnDelay = 300;
         this.maxSpawnDelay = 1200;
@@ -217,8 +216,7 @@ class GameSettings {
     } else if (this.easyWords.length) {
         return this.easyWords[Math.floor(Math.random() * this.easyWords.length)];
     } else {
-        // fallback to default pool
-        return this.wordPool[Math.floor(Math.random() * this.wordPool.length)];
+        console.log("can't find words")
     }
 }
 
@@ -289,6 +287,9 @@ class GameSettings {
 
 
     async initEnemySpawner() {
+        showWaveIncoming(this.waveCount);
+        await this.wait(2000);
+         hideWaveIncoming();
         for (let i = 0; i < this.enemiesPerWave; i++) {
             this.initEnemy();
             const delay = this.getRandomSpawnDelay();
@@ -961,10 +962,21 @@ class PlayerShip {
   ctx.restore();
 }
 }
+function showWaveIncoming(wave) {
+    const el = document.getElementById("wave-incoming");
+    el.textContent = `Wave ${wave} Incoming`;
 
+    el.classList.remove("fade-out");  
+    void el.offsetWidth;          
+    el.classList.add("fade-in");
+}
 
+async function hideWaveIncoming() {
+    const el = document.getElementById("wave-incoming");
 
-
+    el.classList.remove("fade-in");   
+    el.classList.add("fade-out");     
+}
 
 
 
@@ -1164,7 +1176,6 @@ function endGame() {
 const  gameSettings = new GameSettings();
 
 async function startGame() {
-    // await gameSettings.loadWordPool()
   await loadPlayerImage()
   await loadEnemyTypeImages();
   await loadFocusCircleImage();
